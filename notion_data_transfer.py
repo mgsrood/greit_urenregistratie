@@ -94,7 +94,7 @@ with open(json_file, 'r') as config_file:
     config = json.load(config_file)
 
 # Get the BigQuery keys
-gc_keys = "bigquery_greit_keys.json"
+gc_keys = os.getenv("GREIT_GOOGLE_CREDENTIALS", "")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = gc_keys
 
 # BigQuery information
