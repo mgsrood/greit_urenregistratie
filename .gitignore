@@ -1,0 +1,3 @@
+pull_from_git.sh
+push_to_git.sh
+.env
