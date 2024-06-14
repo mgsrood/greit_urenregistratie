@@ -1,6 +1,6 @@
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import pandas_gbq
 import json
 import os
@@ -113,9 +113,18 @@ for client in clients:
 # Make a tasks df
 df_clients = pd.DataFrame(df_data)
 
+# Function to get tomorrow and 90 days ago
+def get_tomorrow_and_90_days_ago():
+    today = datetime.now()
+    tomorrow = today + timedelta(days=1)
+    ninety_days_ago = today - timedelta(days=90)
+    return tomorrow.strftime('%Y-%m-%d'), ninety_days_ago.strftime('%Y-%m-%d')
+
+tomorrow, ninety_days_ago = get_tomorrow_and_90_days_ago()
+
 # Variables
-start_date = os.getenv('START_DATE')
-end_date = os.getenv('END_DATE')
+start_date = ninety_days_ago
+end_date = tomorrow
 
 # Time entries GET request
 next_page = True
