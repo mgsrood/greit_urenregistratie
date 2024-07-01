@@ -1,6 +1,6 @@
 import requests
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas_gbq
 import json
 import os
@@ -10,23 +10,6 @@ from dotenv import load_dotenv
 # Load .env
 load_dotenv()
 
-# Define Get Data From BigQuery
-def get_data_from_bigquery(project_id, dataset_id, table_id):
-    
-    # Make a BigQuery client
-    client = bigquery.Client(project=project_id)
-
-    # Build the reference to the dataset
-    table_ref = client.dataset(dataset_id).table(table_id)
-
-    # Get the table
-    table = client.get_table(table_ref)
-
-    # Load the data into a DataFrame
-    df = client.list_rows(table).to_dataframe()
-
-    return df
-
 # Get the BigQuery keys
 gc_keys = os.getenv("GREIT_GOOGLE_CREDENTIALS")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = gc_keys
@@ -35,14 +18,7 @@ os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = gc_keys
 project_id = os.getenv("UREN_REGISTRATIE_PROJECT_ID")
 dataset_id = os.getenv("UREN_REGISTRATIE_DATASET_ID")
 table_id = os.getenv("UREN_REGISTRATIE_TABLE_ID")
-full_table_id = f'{project_id}.{dataset_id}.{table_id}'
-
-# Get the BigQuery data
-dataframe = get_data_from_bigquery(project_id, dataset_id, table_id)
-existing_id_list = dataframe['ID']
-
-# Make a BigQuery Client
-bigquery_client = bigquery.Client(project=project_id)
+full_table_id = f'{project_id}.{dataset_id}.keeping_data'
 
 # Keeping ID
 id = os.environ.get('KEEPING_ID')
@@ -54,8 +30,8 @@ full_url = f"{url}{id}/"
 # Authorization
 access_token = os.environ.get('KEEPING_ACCESS_TOKEN')
 headers = {
-'Authorization': f'Bearer {access_token}',
-'Accept': 'application/json'
+    'Authorization': f'Bearer {access_token}',
+    'Accept': 'application/json'
 }
 
 # Projects GET request
@@ -113,26 +89,13 @@ for client in clients:
 # Make a tasks df
 df_clients = pd.DataFrame(df_data)
 
-# Function to get tomorrow and 90 days ago
-def get_tomorrow_and_90_days_ago():
-    today = datetime.now()
-    tomorrow = today + timedelta(days=1)
-    ninety_days_ago = today - timedelta(days=90)
-    return tomorrow.strftime('%Y-%m-%d'), ninety_days_ago.strftime('%Y-%m-%d')
-
-tomorrow, ninety_days_ago = get_tomorrow_and_90_days_ago()
-
-# Variables
-start_date = ninety_days_ago
-end_date = tomorrow
-
 # Time entries GET request
 next_page = True
 page = 1
 df_data = []
 
 while next_page:
-    response = requests.request("GET", f"{full_url}report/time-entries?page={page}&from={start_date}&to={end_date}", headers=headers)
+    response = requests.request("GET", f"{full_url}report/time-entries?page={page}", headers=headers)
 
     # Parsing the request to json
     data = response.json()
@@ -164,7 +127,7 @@ while next_page:
 # Make a Dataframe
 df_time_entries = pd.DataFrame(df_data)
 
-# Merg the DataFrames
+# Merge the DataFrames
 df_pre_merged = pd.merge(df_projects, df_clients, on='Klant ID', how='left')
 df_merged = pd.merge(df_time_entries, df_pre_merged, on='Project ID', how='left')
 df_merged = pd.merge(df_merged, df_tasks, on='Taak ID', how='left')
@@ -175,12 +138,7 @@ df_merged.drop(['Klant ID_x', 'Project ID', 'Taak ID', 'Klant ID_y'], axis=1, in
 # Change data types
 df_merged['Datum'] = pd.to_datetime(df_merged['Datum'])
 
-# Filter out existing IDs
-df_to_upload = df_merged[~df_merged['ID'].isin(existing_id_list)]
-
-# Number of rows to upload
-rows = len(df_to_upload.index)
-
 # Insert data into newly made table
-pandas_gbq.to_gbq(df_to_upload, full_table_id, project_id=project_id, if_exists='append')
-print(f"Data is succesvol geüpload naar BigQuery: {rows} rijen toegevoegd.")
+pandas_gbq.to_gbq(df_merged, full_table_id, project_id=project_id, if_exists='replace')
+
+print(f"Data is succesvol geüpload naar {full_table_id}.")
